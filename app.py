@@ -11,12 +11,18 @@ from aiogram.fsm.state import State, StatesGroup
 # --- НАСТРОЙКИ ---
 TOKEN = '9179658337:AAG9Ia4fR0dZjvA7cVNX829brt48AfaOqhU'
 CARD_NUMBER = "2200 3961 2634 2837"
-SBP_PHONE = "+7 (914) 547-56-71" # Твой номер для СБП
+SBP_PHONE = "+7 (914) 547-56-71"
 ADMIN_ID = 8804452762 
+
+# Ссылка на твой сервер Render из переменных окружения
+WEBHOOK_HOST = os.environ.get("WEBHOOK_URL", "https://mybot-w3ie.onrender.com")
+WEBHOOK_PATH = "/webhook"
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
 # --- ССЫЛКИ НА КАРТИНКИ ---
 IMG_START = "https://i.postimg.cc/5yDB5CZ1/58dfdbc021d1218e2a6dec03fd8d992c-e50d6344-285f-4836-9894-ed71d863032f-(1).png"
 IMG_FAQ = "https://i.postimg.cc/5yDB5CZ1/58dfdbc021d1218e2a6dec03fd8d992c-e50d6344-285f-4836-9894-ed71d863032f-(1).png"
+IMG_SUPPORT = "https://i.postimg.cc/5yDB5CZ1/58dfdbc021d1218e2a6dec03fd8d992c-e50d6344-285f-4836-9894-ed71d863032f-(1).png"
 
 # --- БОТ ---
 bot = Bot(token=TOKEN)
@@ -90,7 +96,14 @@ async def faq_reply(message: types.Message):
 
 @dp.message(lambda message: message.text == "🆘 Поддержка")
 async def support_reply(message: types.Message):
-    await message.answer("🆘 <b>Поддержка PotapchikShop</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", parse_mode="HTML")
+    try:
+        await message.answer_photo(
+            photo=IMG_SUPPORT, 
+            caption="🆘 <b>Поддержка PotapchikShop</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", 
+            parse_mode="HTML"
+        )
+    except:
+        await message.answer("🆘 <b>Поддержка PotapchikShop</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", parse_mode="HTML")
 
 # --- STEAM ---
 @dp.callback_query(lambda c: c.data == "steam")
@@ -182,7 +195,7 @@ async def process_custom_stars(message: types.Message, state: FSMContext):
     stars_amount = int(message.text)
     final_price = int(stars_amount * STAR_PRICE * 1.15)
     await state.update_data(stars_amount=stars_amount, final_price=final_price)
-    await message.answer(f"Ты выбрал {stars_amount} звезд.\nК оплате: {final_price}₽.\n\nВведи юзернейм Telegram (кому отправить):")
+    await callback.message.answer(f"Ты выбрал {stars_amount} звезд.\nК оплате: {final_price}₽.\n\nВведи юзернейм Telegram (кому отправить):")
     await state.set_state(StarsStates.waiting_for_username)
 
 @dp.message(StarsStates.waiting_for_username)
@@ -206,7 +219,7 @@ async def user_paid(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💳 Перевод на карту", callback_data="pay_card")],
         [InlineKeyboardButton(text="🏦 СБП", callback_data="pay_sbp")],
-        [InlineKeyboardButton(text="🤖 Криптобот", callback_data="pay_crypto")]
+        [InlineKeyboardButton(text="🤖 CryptoBot", callback_data="pay_crypto")]
     ])
     await callback.message.answer("Выбери удобный способ оплаты:", reply_markup=keyboard)
 
@@ -279,14 +292,14 @@ async def other_games(callback: types.CallbackQuery):
     await callback.answer()
     await callback.message.answer("Этот раздел в разработке. Скоро добавим!")
 
-# --- FLASK СЕРВЕР ---
+# --- ВЕБХУК И FLASK ---
 app = Flask(__name__)
 
 @app.route('/')
 def home():
     return "Bot is running"
 
-@app.route('/webhook', methods=['POST'])
+@app.route(WEBHOOK_PATH, methods=['POST'])
 def webhook():
     return jsonify({"status": "success"}), 200
 
@@ -296,6 +309,7 @@ def run_flask():
 
 async def main():
     print("Bot is starting...")
+    await bot.set_webhook(WEBHOOK_URL)
     threading.Thread(target=run_flask, daemon=True).start()
     await dp.start_polling(bot)
 
