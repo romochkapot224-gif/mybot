@@ -7,6 +7,8 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
 
 # --- НАСТРОЙКИ ---
 TOKEN = '9179658337:AAG9Ia4fR0dZjvA7cVNX829brt48AfaOqhU'
@@ -14,17 +16,14 @@ CARD_NUMBER = "2200 3961 2634 2837"
 SBP_PHONE = "+7 (914) 547-56-71"
 ADMIN_ID = 8804452762 
 
-# Ссылка на твой сервер Render из переменных окружения
 WEBHOOK_HOST = os.environ.get("WEBHOOK_URL", "https://mybot-w3ie.onrender.com")
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
-# --- ССЫЛКИ НА КАРТИНКИ ---
 IMG_START = "https://i.postimg.cc/5yDB5CZ1/58dfdbc021d1218e2a6dec03fd8d992c-e50d6344-285f-4836-9894-ed71d863032f-(1).png"
 IMG_FAQ = "https://i.postimg.cc/5yDB5CZ1/58dfdbc021d1218e2a6dec03fd8d992c-e50d6344-285f-4836-9894-ed71d863032f-(1).png"
 IMG_SUPPORT = "https://i.postimg.cc/5yDB5CZ1/58dfdbc021d1218e2a6dec03fd8d992c-e50d6344-285f-4836-9894-ed71d863032f-(1).png"
 
-# --- БОТ ---
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
@@ -50,7 +49,6 @@ def get_main_reply_keyboard():
     )
     return keyboard
 
-# --- СТАРТ ---
 @dp.message(Command("start"))
 async def start(message: types.Message):
     welcome_text = (
@@ -71,7 +69,6 @@ async def start(message: types.Message):
     except:
         await message.answer(welcome_text, reply_markup=get_main_reply_keyboard(), parse_mode="HTML")
 
-# --- КНОПКИ СНИЗУ ---
 @dp.message(lambda message: message.text == "🛒 Каталог")
 async def catalog_reply(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -105,7 +102,6 @@ async def support_reply(message: types.Message):
     except:
         await message.answer("🆘 <b>Поддержка PotapchikShop</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", parse_mode="HTML")
 
-# --- STEAM ---
 @dp.callback_query(lambda c: c.data == "steam")
 async def steam_menu(callback: types.CallbackQuery):
     await callback.answer()
@@ -157,7 +153,6 @@ async def process_login(message: types.Message, state: FSMContext):
     await message.answer(f"Переведи {final_price}₽ на карту:\n{CARD_NUMBER}\n\nПосле перевода нажми:", reply_markup=keyboard)
     await state.clear()
 
-# --- STARS ---
 @dp.callback_query(lambda c: c.data == "stars")
 async def stars_menu(callback: types.CallbackQuery):
     await callback.answer()
@@ -210,7 +205,6 @@ async def process_stars_username(message: types.Message, state: FSMContext):
     await message.answer(f"Получатель: {username}\nК оплате: {final_price}₽\n\nПереведи на карту:\n{CARD_NUMBER}\n\nПосле перевода нажми:", reply_markup=keyboard)
     await state.clear()
 
-# --- ВЫБОР СПОСОБА ОПЛАТЫ ---
 @dp.callback_query(lambda c: c.data == "user_paid")
 async def user_paid(callback: types.CallbackQuery):
     await callback.answer()
@@ -292,34 +286,21 @@ async def other_games(callback: types.CallbackQuery):
     await callback.answer()
     await callback.message.answer("Этот раздел в разработке. Скоро добавим!")
 
-# --- ВЕБХУК И FLASK ---
-app = Flask(__name__)
 
-@app.route('/')
-def home():
-    return "Bot is running"
-
-@app.route(WEBHOOK_PATH, methods=['POST'])
-def webhook():
-    return jsonify({"status": "success"}), 200
-
-def run_flask():
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, use_reloader=False)
-
-async def main():
-    print("Bot is starting...")
-    # Устанавливаем вебхук при запуске
-    await bot.delete_webhook(drop_pending_updates=True) # Убираем старые конфликты
+# --- ВЕБХУК С ИСПОЛЬЗОВАНИЕМ AIOHTTP ---
+async def on_startup(app: web.Application):
+    await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(WEBHOOK_URL)
+
+def main():
+    app = web.Application()
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot)
+    app.on_startup.append(on_startup)
     
-    # Запускаем Flask в фоне
-    threading.Thread(target=run_flask, daemon=True).start()
-    
-    print(f"Webhook set to: {WEBHOOK_URL}")
-    # Ждем, пока Flask работает (бесконечный цикл для поддержания жизни)
-    while True:
-        await asyncio.sleep(3600)
+    # Render передает порт через переменную окружения PORT
+    port = int(os.environ.get("PORT", 10000))
+    web.run_app(app, host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
