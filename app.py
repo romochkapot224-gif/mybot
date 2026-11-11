@@ -1,14 +1,12 @@
 import asyncio
 import os
-import threading
-from flask import Flask, request, jsonify
+from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from aiohttp import web
 
 # --- НАСТРОЙКИ ---
 TOKEN = '9179658337:AAG9Ia4fR0dZjvA7cVNX829brt48AfaOqhU'
@@ -20,9 +18,10 @@ WEBHOOK_HOST = os.environ.get("WEBHOOK_URL", "https://mybot-w3ie.onrender.com")
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
+# --- ССЫЛКИ НА КАРТИНКИ ---
 IMG_START = "https://i.postimg.cc/5yDB5CZ1/58dfdbc021d1218e2a6dec03fd8d992c-e50d6344-285f-4836-9894-ed71d863032f-(1).png"
-IMG_FAQ = "https://i.postimg.cc/5yDB5CZ1/58dfdbc021d1218e2a6dec03fd8d992c-e50d6344-285f-4836-9894-ed71d863032f-(1).png"
-IMG_SUPPORT = "https://i.postimg.cc/5yDB5CZ1/58dfdbc021d1218e2a6dec03fd8d992c-e50d6344-285f-4836-9894-ed71d863032f-(1).png"
+IMG_FAQ = "https://i.postimg.cc/66hTdnxM/edd5740c076ef1085147274e76aa9a51-82febf9d-67bf-46ad-8a5f-0d2ddf725540.jpg"
+IMG_SUPPORT = "https://i.postimg.cc/zv2WzgJ7/62749612888563fa5dbfdf8de2ed074a-ed2c0b9b-7f01-4db5-a936-7addd32dd7ad-(1).jpg"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -287,7 +286,7 @@ async def other_games(callback: types.CallbackQuery):
     await callback.message.answer("Этот раздел в разработке. Скоро добавим!")
 
 
-# --- ВЕБХУК С ИСПОЛЬЗОВАНИЕМ AIOHTTP ---
+# --- ВЕБХУК ---
 async def on_startup(app: web.Application):
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(WEBHOOK_URL)
@@ -298,7 +297,6 @@ def main():
     setup_application(app, dp, bot=bot)
     app.on_startup.append(on_startup)
     
-    # Render передает порт через переменную окружения PORT
     port = int(os.environ.get("PORT", 10000))
     web.run_app(app, host="0.0.0.0", port=port)
 
