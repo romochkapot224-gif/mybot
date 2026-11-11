@@ -309,9 +309,17 @@ def run_flask():
 
 async def main():
     print("Bot is starting...")
+    # Устанавливаем вебхук при запуске
+    await bot.delete_webhook(drop_pending_updates=True) # Убираем старые конфликты
     await bot.set_webhook(WEBHOOK_URL)
+    
+    # Запускаем Flask в фоне
     threading.Thread(target=run_flask, daemon=True).start()
-    await dp.start_polling(bot)
+    
+    print(f"Webhook set to: {WEBHOOK_URL}")
+    # Ждем, пока Flask работает (бесконечный цикл для поддержания жизни)
+    while True:
+        await asyncio.sleep(3600)
 
 if __name__ == "__main__":
     asyncio.run(main())
