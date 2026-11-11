@@ -7,6 +7,7 @@ from aiogram.filters import Command
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+from aiogram.client.session.aiohttp import AiohttpSession
 
 # --- НАСТРОЙКИ ---
 TOKEN = '9179658337:AAG9Ia4fR0dZjvA7cVNX829brt48AfaOqhU'
@@ -140,16 +141,20 @@ def home():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    data = request.json
-    if data and data.get('event') == 'payment.succeeded':
-        print("✅ ЮKassa подтвердила оплату!")
     return jsonify({"status": "success"}), 200
 
 # --- ЗАПУСК ---
-def run_bot():
-    asyncio.run(dp.start_polling(bot))
+def run_flask():
+    # Запускаем Flask на порту, который даст Render
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, use_reloader=False)
+
+async def main():
+    print("Bot is starting...")
+    # Запускаем Flask в отдельном потоке, чтобы он не мешал боту
+    threading.Thread(target=run_flask, daemon=True).start()
+    # Запускаем бота в главном потоке
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    threading.Thread(target=run_bot, daemon=True).start()
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    asyncio.run(main())
