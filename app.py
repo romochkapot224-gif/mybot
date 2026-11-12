@@ -18,7 +18,10 @@ WEBHOOK_HOST = os.environ.get("WEBHOOK_URL", "https://mybot-w3ie.onrender.com")
 WEBHOOK_PATH = "/webhook"
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
+# --- ССЫЛКИ НА КАРТИНКИ (ОСТАВИЛ КАК БЫЛО) ---
 IMG_START = "https://i.postimg.cc/5yDB5CZ1/58dfdbc021d1218e2a6dec03fd8d992c-e50d6344-285f-4836-9894-ed71d863032f-(1).png"
+IMG_FAQ = "https://i.postimg.cc/66hTdnxM/edd5740c076ef1085147274e76aa9a51-82febf9d-67bf-46ad-8a5f-0d2ddf725540.jpg"
+IMG_SUPPORT = "https://i.postimg.cc/zv2WzgJ7/62749612888563fa5dbfdf8de2ed074a-ed2c0b9b-7f01-4db5-a936-7addd32dd7ad-(1).jpg"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -48,9 +51,15 @@ def get_main_reply_keyboard():
 async def start(message: types.Message):
     welcome_text = (
         "👋 <b>Добро пожаловать в PotapchikShop!</b>\n\n"
-        "Мы — современный сервис по пополнению аккаунтов и покупке игровых ценностей.\n\n"
-        "В нашем ассортименте:\n"
-        "🎮 Steam | 🔥 Brawl Stars | 🟥 Roblox | 🔫 PUBG | ⭐ Telegram Stars\n\n"
+        "Мы — современный сервис по пополнению аккаунтов и покупке игровых ценностей. "
+        "Наша команда делает процесс покупки максимально быстрым, удобным и безопасным для каждого клиента.\n\n"
+        "В нашем ассортименте всегда есть:\n"
+        "🎮 Пополнение Steam (рубли)\n"
+        "🔥 Гемы и Brawl Pass для Brawl Stars\n"
+        "🟥 Robux для Roblox\n"
+        "🔫 UC для PUBG Mobile\n"
+        "⭐ Telegram Stars\n\n"
+        "Мы ценим ваше время и доверие. Все заказы обрабатываются оперативно, а в случае любых вопросов наша поддержка всегда готова прийти на помощь.\n\n"
         "Приятных покупок! 🚀"
     )
     try:
@@ -69,11 +78,27 @@ async def catalog_reply(message: types.Message):
 
 @dp.message(lambda message: message.text == "❓ FAQ")
 async def faq_reply(message: types.Message):
-    await message.answer("❓ <b>Частые вопросы (FAQ)</b>\n\n1️⃣ <b>Как оплатить?</b> Выбираете товар, способ оплаты, переводите и жмете «Проверить».\n\n2️⃣ <b>Сколько ждать?</b> 1–5 минут.\n\n3️⃣ <b>Не пришло?</b> Напишите в поддержку с чеком.", parse_mode="HTML")
+    faq_text = (
+        "❓ <b>Частые вопросы (FAQ)</b>\n\n"
+        "1️⃣ <b>Как оплатить?</b> Выбираете товар, вводите логин, переводите сумму и нажимаете «Проверить».\n\n"
+        "2️⃣ <b>Сколько ждать?</b> Обычно 1–5 минут после оплаты.\n\n"
+        "3️⃣ <b>Не пришло, что делать?</b> Напишите в поддержку с чеком, мы все решим."
+    )
+    try:
+        await message.answer_photo(photo=IMG_FAQ, caption=faq_text, parse_mode="HTML")
+    except:
+        await message.answer(faq_text, parse_mode="HTML")
 
 @dp.message(lambda message: message.text == "🆘 Поддержка")
 async def support_reply(message: types.Message):
-    await message.answer("🆘 <b>Поддержка PotapchikShop</b>\n\nНапиши нам:\n👉 @Fatty_Jerry", parse_mode="HTML")
+    try:
+        await message.answer_photo(
+            photo=IMG_SUPPORT, 
+            caption="🆘 <b>Поддержка PotapchikShop</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", 
+            parse_mode="HTML"
+        )
+    except:
+        await message.answer("🆘 <b>Поддержка PotapchikShop</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", parse_mode="HTML")
 
 # --- STEAM ---
 @dp.callback_query(lambda c: c.data == "steam")
@@ -234,10 +259,8 @@ async def admin_confirm(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID: return
     user_id = int(callback.data.split("_")[2])
     
-    # Сообщение клиенту
     await bot.send_message(user_id, "✅ <b>Оплата получена!</b>\n\nМы приступаем к выполнению вашего заказа. Ожидайте.", parse_mode="HTML")
     
-    # Кнопка "Заказ выполнен" для админа
     complete_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🏁 Заказ выполнен", callback_data=f"admin_complete_{user_id}")]
     ])
