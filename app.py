@@ -186,14 +186,14 @@ async def process_stars_username(message: types.Message, state: FSMContext):
     await message.answer(f"Отлично! Получатель: {username}\nСумма к оплате: {final_price}₽.\n\nВыбери удобный способ оплаты:", reply_markup=keyboard)
     await state.clear()
 
-# --- ВЫБОР СПОСОБА И ВЫДАЧА РЕКВИЗИТОВ ---
+# --- ВЫБОР СПОСОБА ---
 @dp.callback_query(lambda c: c.data in ["pay_card", "pay_sbp"])
 async def process_payment_method(callback: types.CallbackQuery):
     await callback.answer()
     order = user_orders.get(callback.from_user.id)
     
     if not order:
-        await callback.message.answer("Ошибка: заказ не найден. Начни заново.")
+        await callback.message.answer("Ошибка: заказ не найден.")
         return
 
     method = callback.data
@@ -204,23 +204,11 @@ async def process_payment_method(callback: types.CallbackQuery):
     ])
 
     if method == "pay_card":
-        await callback.message.answer(
-            f"💳 <b>Перевод на карту</b>\n\n"
-            f"Сумма: <b>{order['price']}₽</b>\n"
-            f"Карта: <code>{CARD_NUMBER}</code>\n\n"
-            f"После перевода нажми кнопку ниже:",
-            reply_markup=check_keyboard, parse_mode="HTML"
-        )
+        await callback.message.answer(f"💳 <b>Перевод на карту</b>\n\nСумма: <b>{order['price']}₽</b>\nКарта: <code>{CARD_NUMBER}</code>\n\nПосле перевода нажми:", reply_markup=check_keyboard, parse_mode="HTML")
     elif method == "pay_sbp":
-        await callback.message.answer(
-            f"🏦 <b>Оплата через СБП</b>\n\n"
-            f"Сумма: <b>{order['price']}₽</b>\n"
-            f"Номер: <code>{SBP_PHONE}</code>\n\n"
-            f"После перевода нажми кнопку ниже:",
-            reply_markup=check_keyboard, parse_mode="HTML"
-        )
+        await callback.message.answer(f"🏦 <b>Оплата через СБП</b>\n\nСумма: <b>{order['price']}₽</b>\nНомер: <code>{SBP_PHONE}</code>\n\nПосле перевода нажми:", reply_markup=check_keyboard, parse_mode="HTML")
 
-# --- КЛИЕНТ НАЖАЛ "ПРОВЕРИТЬ ОПЛАТУ" ---
+# --- ПРОВЕРКА ОПЛАТЫ ---
 @dp.callback_query(lambda c: c.data == "check_payment")
 async def check_payment(callback: types.CallbackQuery):
     await callback.answer()
@@ -234,36 +222,42 @@ async def check_payment(callback: types.CallbackQuery):
     await callback.message.answer("⏳ Запрос отправлен администратору. Ожидайте подтверждения...")
     
     admin_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"admin_confirm_{callback.from_user.id}")],
+        [InlineKeyboardButton(text="✅ Подтвердить оплату", callback_data=f"admin_confirm_{callback.from_user.id}")],
         [InlineKeyboardButton(text="❌ Отклонить", callback_data=f"admin_reject_{callback.from_user.id}")]
     ])
     
-    await bot.send_message(
-        ADMIN_ID, 
-        f"💰 <b>ЗАПРОС НА ОПЛАТУ!</b>\n\n"
-        f"Клиент: {callback.from_user.first_name}\n"
-        f"Товар: {order.get('type', 'Steam')}\n"
-        f"Логин/Ник: {order['login']}\n"
-        f"Сумма: {order['price']}₽\n\n"
-        f"Проверь банк и нажми кнопку:", 
-        reply_markup=admin_keyboard,
-        parse_mode="HTML"
-    )
+    await bot.send_message(ADMIN_ID, f"💰 <b>ЗАПРОС НА ОПЛАТУ!</b>\n\nКлиент: {callback.from_user.first_name}\nТовар: {order.get('type', 'Steam')}\nЛогин/Ник: {order['login']}\nСумма: {order['price']}₽\n\nПроверь банк:", reply_markup=admin_keyboard, parse_mode="HTML")
 
-# --- АДМИН ПОДТВЕРЖДАЕТ / ОТКЛОНЯЕТ ---
-@dp.callback_query(lambda c: c.data.startswith("admin_"))
-async def admin_action(callback: types.CallbackQuery):
-    if callback.from_user.id != ADMIN_ID:
-        await callback.answer("Нет прав.", show_alert=True)
-        return
-    parts = callback.data.split("_")
-    action, user_id = parts[1], int(parts[2])
-    if action == "confirm":
-        await bot.send_message(user_id, "✅ <b>Оплата прошла!</b>\nЗаказ выполнен. Спасибо за покупку!", parse_mode="HTML")
-        await callback.message.edit_text("✅ Подтверждено.")
-    else:
-        await bot.send_message(user_id, "❌ <b>Оплата не найдена.</b>\nНапиши в поддержку @Fatty_Jerry.", parse_mode="HTML")
-        await callback.message.edit_text("❌ Отклонено.")
+# --- АДМИН ПОДТВЕРЖДАЕТ ---
+@dp.callback_query(lambda c: c.data.startswith("admin_confirm"))
+async def admin_confirm(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID: return
+    user_id = int(callback.data.split("_")[2])
+    
+    # Сообщение клиенту
+    await bot.send_message(user_id, "✅ <b>Оплата получена!</b>\n\nМы приступаем к выполнению вашего заказа. Ожидайте.", parse_mode="HTML")
+    
+    # Кнопка "Заказ выполнен" для админа
+    complete_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🏁 Заказ выполнен", callback_data=f"admin_complete_{user_id}")]
+    ])
+    await callback.message.edit_text("✅ Ты подтвердил оплату. Нажми кнопку ниже, когда выдашь товар.", reply_markup=complete_keyboard)
+
+# --- АДМИН ОТКЛОНЯЕТ ---
+@dp.callback_query(lambda c: c.data.startswith("admin_reject"))
+async def admin_reject(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID: return
+    user_id = int(callback.data.split("_")[2])
+    await bot.send_message(user_id, "❌ <b>Оплата не найдена.</b>\nНапиши в поддержку @Fatty_Jerry.", parse_mode="HTML")
+    await callback.message.edit_text("❌ Отклонено.")
+
+# --- АДМИН ЗАВЕРШАЕТ ЗАКАЗ ---
+@dp.callback_query(lambda c: c.data.startswith("admin_complete"))
+async def admin_complete(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID: return
+    user_id = int(callback.data.split("_")[2])
+    await bot.send_message(user_id, "🏁 <b>Заказ успешно выполнен!</b>\n\nСпасибо, что выбрали PotapchikShop. Будем рады видеть вас снова! 🎮", parse_mode="HTML")
+    await callback.message.edit_text("🏁 Заказ завершен. Клиент уведомлен.")
 
 @dp.callback_query(lambda c: c.data == "back_to_catalog")
 async def back_to_catalog(callback: types.CallbackQuery):
