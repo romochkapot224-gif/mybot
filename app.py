@@ -50,17 +50,40 @@ def get_main_reply_keyboard():
         resize_keyboard=True
     )
 
+# --- ДЛИННОЕ ПРИВЕТСТВИЕ ---
 @dp.message(Command("start"))
 async def start(message: types.Message):
-    welcome_text = "👋 <b>Добро пожаловать в PotapchikShop!</b>\n\nВыбери игру в каталоге и пополни свой аккаунт быстро и безопасно! 🚀"
+    welcome_text = (
+        "👋 <b>Добро пожаловать в PotapchikShop!</b>\n\n"
+        "Мы — современный сервис по пополнению аккаунтов и покупке игровых ценностей. "
+        "Наша команда делает процесс покупки максимально быстрым, удобным и безопасным для каждого клиента.\n\n"
+        "В нашем ассортименте всегда есть:\n"
+        "🎮 Пополнение Steam (рубли)\n"
+        "🔥 Гемы и Brawl Pass для Brawl Stars\n"
+        "🟥 Robux для Roblox\n"
+        "🔫 UC для PUBG Mobile\n"
+        "⭐ Telegram Stars\n\n"
+        "Мы ценим ваше время и доверие. Все заказы обрабатываются оперативно, а в случае любых вопросов наша поддержка всегда готова прийти на помощь.\n\n"
+        "Приятных покупок! 🚀"
+    )
     try:
         await message.answer_photo(photo=IMG_START, caption=welcome_text, reply_markup=get_main_reply_keyboard(), parse_mode="HTML")
     except:
         await message.answer(welcome_text, reply_markup=get_main_reply_keyboard(), parse_mode="HTML")
 
+# --- ДЛИННОЕ О НАС ---
 @dp.message(lambda message: message.text == "ℹ️ О нас")
 async def about_us(message: types.Message):
-    about_text = "ℹ️ <b>О магазине PotapchikShop</b>\n\nМы — команда энтузиастов, делающая пополнение игровых аккаунтов быстрым и безопасным."
+    about_text = (
+        "ℹ️ <b>О магазине PotapchikShop</b>\n\n"
+        "Добро пожаловать в наш магазин! Мы — команда энтузиастов, которая делает пополнение игровых аккаунтов максимально быстрым, удобным и безопасным.\n\n"
+        "Почему выбирают нас?\n"
+        "⚡ <b>Скорость:</b> Мы обрабатываем заказы в течение 1–5 минут.\n"
+        "🛡 <b>Безопасность:</b> Работаем только через проверенные каналы, чтобы твой аккаунт не попал под бан.\n"
+        "💎 <b>Выгодные цены:</b> Наши цены ниже официальных магазинов.\n"
+        "🤝 <b>Поддержка:</b> Всегда на связи и готовы помочь с любым вопросом.\n\n"
+        "Мы постоянно развиваемся и добавляем новые игры и сервисы. Спасибо, что выбираешь нас! 🚀"
+    )
     try:
         await message.answer_photo(photo=IMG_START, caption=about_text, parse_mode="HTML")
     except:
@@ -68,7 +91,12 @@ async def about_us(message: types.Message):
 
 @dp.message(lambda message: message.text == "❓ FAQ")
 async def faq_reply(message: types.Message):
-    faq_text = "❓ <b>FAQ</b>\n\n1. Как оплатить? (Выбираете товар, вводите логин, жмете «Проверить»)\n2. Сколько ждать? (1-5 минут)\n3. Не пришло? (Пишите в поддержку)"
+    faq_text = (
+        "❓ <b>Частые вопросы (FAQ)</b>\n\n"
+        "1️⃣ <b>Как оплатить?</b> Выбираете товар, вводите логин, переводите сумму и нажимаете «Проверить».\n\n"
+        "2️⃣ <b>Сколько ждать?</b> Обычно 1–5 минут после оплаты.\n\n"
+        "3️⃣ <b>Не пришло, что делать?</b> Напишите в поддержку с чеком, мы все решим."
+    )
     try:
         await message.answer_photo(photo=IMG_FAQ, caption=faq_text, parse_mode="HTML")
     except:
@@ -77,9 +105,9 @@ async def faq_reply(message: types.Message):
 @dp.message(lambda message: message.text == "🆘 Поддержка")
 async def support_reply(message: types.Message):
     try:
-        await message.answer_photo(photo=IMG_SUPPORT, caption="🆘 <b>Поддержка</b>\n\nНапиши нам: @Fatty_Jerry", parse_mode="HTML")
+        await message.answer_photo(photo=IMG_SUPPORT, caption="🆘 <b>Поддержка PotapchikShop</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", parse_mode="HTML")
     except:
-        await message.answer("🆘 <b>Поддержка</b>\n\nНапиши нам: @Fatty_Jerry", parse_mode="HTML")
+        await message.answer("🆘 <b>Поддержка PotapchikShop</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", parse_mode="HTML")
 
 @dp.message(lambda message: message.text == "🛒 Каталог")
 async def catalog_reply(message: types.Message):
