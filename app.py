@@ -50,7 +50,6 @@ def get_main_reply_keyboard():
         resize_keyboard=True
     )
 
-# --- ДЛИННОЕ ПРИВЕТСТВИЕ ---
 @dp.message(Command("start"))
 async def start(message: types.Message):
     welcome_text = (
@@ -62,8 +61,8 @@ async def start(message: types.Message):
         "🔥 Гемы и Brawl Pass для Brawl Stars\n"
         "🟥 Robux для Roblox\n"
         "🔫 UC для PUBG Mobile\n"
-        "⭐ Telegram Stars\n\n"
-        "Мы ценим ваше время и доверие. Все заказы обрабатываются оперативно, а в случае любых вопросов наша поддержка всегда готова прийти на помощь.\n\n"
+        "⭐ Telegram Stars\n"
+        "🎬 AI Studio (услуги нейросетей)\n\n"
         "Приятных покупок! 🚀"
     )
     try:
@@ -71,7 +70,6 @@ async def start(message: types.Message):
     except:
         await message.answer(welcome_text, reply_markup=get_main_reply_keyboard(), parse_mode="HTML")
 
-# --- ДЛИННОЕ О НАС ---
 @dp.message(lambda message: message.text == "ℹ️ О нас")
 async def about_us(message: types.Message):
     about_text = (
@@ -109,12 +107,15 @@ async def support_reply(message: types.Message):
     except:
         await message.answer("🆘 <b>Поддержка PotapchikShop</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", parse_mode="HTML")
 
+# --- КАТАЛОГ ---
 @dp.message(lambda message: message.text == "🛒 Каталог")
 async def catalog_reply(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔥 Brawl Stars", callback_data="brawl"), InlineKeyboardButton(text="🎮 Steam", callback_data="steam")],
         [InlineKeyboardButton(text="🟥 Roblox", callback_data="roblox"), InlineKeyboardButton(text="🔫 PUBG", callback_data="pubg")],
-        [InlineKeyboardButton(text="⭐ Telegram Stars", callback_data="stars")]
+        [InlineKeyboardButton(text="⭐ Telegram Stars", callback_data="stars")],
+        [InlineKeyboardButton(text="🎬 AI Studio (Нейросети)", callback_data="ai_studio")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main")]
     ])
     await message.answer("🛒 Выбери игру или сервис из каталога:", reply_markup=keyboard)
 
@@ -191,6 +192,25 @@ async def stars_menu(callback: types.CallbackQuery):
     except:
         await callback.message.answer("⭐ <b>Telegram Stars</b>\n\nВыбери количество:", reply_markup=keyboard, parse_mode="HTML")
 
+# --- AI STUDIO (ИЗМЕНЕН НИК) ---
+@dp.callback_query(lambda c: c.data == "ai_studio")
+async def ai_studio_menu(callback: types.CallbackQuery):
+    await callback.answer()
+    await callback.message.delete()
+    
+    text = (
+        "🎬 <b>AI Studio PotapchikShop</b>\n\n"
+        "Мы используем современные нейросети, чтобы создавать уникальный контент на заказ!\n\n"
+        "Доступные услуги:\n"
+        "🎥 <b>Оживление фото:</b> Сделаем видео из твоего фото (от 300₽).\n"
+        "🎨 <b>Нейро-арт:</b> Сгенерируем аватарку или арт по твоему описанию (от 150₽).\n"
+        "📝 <b>Тексты и сценарии:</b> Напишем крутой текст для канала или видео (от 200₽).\n\n"
+        "👉 <b>Для заказа напиши нашему менеджеру:</b> @barmaf_khv\n"
+        "Пришли свое фото или описание, и мы обсудим детали!"
+    )
+    
+    await callback.message.answer(text, parse_mode="HTML")
+
 # --- ОБРАБОТКА ВЫБОРА ТОВАРА ---
 @dp.callback_query(lambda c: c.data.startswith("buy_") and "custom" not in c.data)
 async def item_chosen(callback: types.CallbackQuery, state: FSMContext):
@@ -217,7 +237,11 @@ async def item_chosen(callback: types.CallbackQuery, state: FSMContext):
     item_names = {"100": "100", "500": "500", "pass": "Brawl Pass", "200": "200", "1000": "1000", "60": "60 UC", "325": "325 UC"}
     
     display_name = f"{names[game]} ({item_names.get(item, item)})"
-    await state.update_data(item_name=display_name, final_price=final_price, game=game)
+    
+    if game == "stars":
+        await state.update_data(item_name=display_name, final_price=final_price, game=game, stars_amount=int(item))
+    else:
+        await state.update_data(item_name=display_name, final_price=final_price, game=game)
     
     if game == "stars":
         await callback.message.answer(f"Ты выбрал {display_name}.\nК оплате: {final_price}₽.\n\nВведи юзернейм Telegram (без @):")
@@ -251,6 +275,7 @@ async def process_id(message: types.Message, state: FSMContext):
     final_price = data.get('final_price')
     item_name = data.get('item_name')
     game = data.get('game')
+    stars_amount = data.get('stars_amount')
     
     if game == "stars":
         msg = await message.answer("⏳ Проверяю юзернейм и создаю заказ...")
@@ -262,7 +287,7 @@ async def process_id(message: types.Message, state: FSMContext):
             if not check.eligible:
                 await msg.edit_text(f"❌ Ошибка: {check.telegram_message}\nПроверь написание юзернейма.")
                 return
-            order = client.create_order(type="stars", recipient=user_id_input, quantity=int(data.get('item_name').split()[-1]), payment_currency="TON")
+            order = client.create_order(type="stars", recipient=user_id_input, quantity=stars_amount, payment_currency="TON")
             user_orders[message.from_user.id] = {"login": user_id_input, "price": final_price, "type": item_name, "mystars_order_id": order.id}
             await msg.delete()
         except Exception as e:
@@ -340,7 +365,9 @@ async def back_to_catalog(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔥 Brawl Stars", callback_data="brawl"), InlineKeyboardButton(text="🎮 Steam", callback_data="steam")],
         [InlineKeyboardButton(text="🟥 Roblox", callback_data="roblox"), InlineKeyboardButton(text="🔫 PUBG", callback_data="pubg")],
-        [InlineKeyboardButton(text="⭐ Telegram Stars", callback_data="stars")]
+        [InlineKeyboardButton(text="⭐ Telegram Stars", callback_data="stars")],
+        [InlineKeyboardButton(text="🎬 AI Studio (Нейросети)", callback_data="ai_studio")],
+        [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main")]
     ])
     await callback.message.answer("🛒 Выбери игру или сервис из каталога:", reply_markup=keyboard)
 
