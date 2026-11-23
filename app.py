@@ -228,11 +228,21 @@ async def item_chosen(callback: types.CallbackQuery, state: FSMContext):
     game = parts[1]
     item = parts[2]
     
-    # Базовые цены на основе твоих скриншотов
+    # Базовые цены, строго по твоим скриншотам
     prices = {
         "brawl": {"30": 109, "80": 269, "170": 549, "360": 1099, "950": 2699, "2000": 5499},
         "steam": {"100": 100, "200": 200, "500": 500, "1000": 1000},
-        "roblox": {"80": 119, "400": 539, "800": 1080, "1200": 1290, "1700": 2150, "3150": 2990, "4500": 5600, "10000": 11390, "22500": 22990},
+        "roblox": {
+            "80": 119, 
+            "400": 539, 
+            "800": 1080, 
+            "1200": 1290, 
+            "1700": 2150, 
+            "3150": 2990, 
+            "4500": 5600, 
+            "10000": 11390, 
+            "22500": 22990
+        },
         "pubg": {"60": 99, "325": 449, "660": 899, "1800": 2290, "3850": 4490, "8100": 8990},
         "stars": {"100": 150, "200": 300, "500": 750, "1000": 1500}
     }
@@ -240,12 +250,24 @@ async def item_chosen(callback: types.CallbackQuery, state: FSMContext):
     base_price = prices.get(game, {}).get(item, 0)
     if base_price == 0: return
         
-    # Наценка 15%
-    final_price = int(base_price * 1.15)
+    # Наценка 8%
+    final_price = int(base_price * 1.08)
     names = {"brawl": "Brawl Stars", "steam": "Steam", "roblox": "Roblox", "pubg": "PUBG", "stars": "Telegram Stars"}
+    
+    # Точные названия для чеков
     item_names = {
         "brawl": {"30": "30 гемов", "80": "80 гемов", "170": "170 гемов", "360": "360 гемов", "950": "950 гемов", "2000": "2000 гемов"},
-        "roblox": {"80": "80 Robux", "400": "400 Robux", "800": "800 Robux", "1200": "1200 Robux", "1700": "1700 Robux", "3150": "3150 Robux", "4500": "4500 Robux", "10000": "10000 Robux", "22500": "22500 Robux"},
+        "roblox": {
+            "80": "80 Robux", 
+            "400": "400 Robux", 
+            "800": "800 Robux", 
+            "1200": "1200 Robux", 
+            "1700": "1700 Robux", 
+            "3150": "3150 Robux", 
+            "4500": "4500 Robux", 
+            "10000": "10000 Robux", 
+            "22500": "22500 Robux"
+        },
         "pubg": {"60": "60 UC", "325": "325 UC", "660": "660 UC", "1800": "1800 UC", "3850": "3850 UC", "8100": "8100 UC"}
     }
     
@@ -274,7 +296,8 @@ async def process_custom_amount(message: types.Message, state: FSMContext):
         await message.answer("❌ Введи только цифры.")
         return
     amount = int(message.text)
-    final_price = int(amount * 1.15)
+    # Наценка 8%
+    final_price = int(amount * 1.08)
     await state.update_data(item_name=f"Steam {amount}₽", final_price=final_price, game="steam")
     await message.answer(f"Ты выбрал Steam {amount}₽. К оплате: {final_price}₽.\nВведи логин Steam:")
     await state.set_state(BuyStates.waiting_for_id)
@@ -303,7 +326,6 @@ async def process_id(message: types.Message, state: FSMContext):
                 await msg.edit_text(f"❌ Ошибка: {check.telegram_message}\nПроверь написание юзернейма.")
                 return
             
-            # Исправлено на "ton"
             order = await asyncio.to_thread(client.create_order, type="stars", recipient=user_id_input, quantity=stars_amount, payment_currency="ton")
             user_orders[message.from_user.id] = {"login": user_id_input, "price": final_price, "type": item_name, "mystars_order_id": order.id}
             await msg.delete()
