@@ -329,8 +329,10 @@ async def process_id(message: types.Message, state: FSMContext):
             order = await asyncio.to_thread(client.create_order, type="stars", recipient=user_id_input, quantity=stars_amount, payment_currency="ton")
             user_orders[message.from_user.id] = {"login": user_id_input, "price": final_price, "type": item_name, "mystars_order_id": order.id}
             await msg.delete()
-        except Exception:
-            await msg.edit_text("❌ Ошибка при создании заказа. Попробуйте позже.")
+        except Exception as e:
+            # ВЫВОДИМ ОШИБКУ В ЛОГИ RENDER
+            print(f"КРИТИЧЕСКАЯ ОШИБКА MYSTARS: {e}")
+            await msg.edit_text(f"❌ Ошибка при создании заказа. Попробуйте позже.")
             return
     else:
         user_orders[message.from_user.id] = {"login": user_id_input, "price": final_price, "type": item_name}
