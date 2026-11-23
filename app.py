@@ -1,5 +1,6 @@
 import asyncio
 import os
+import uuid
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
@@ -8,12 +9,20 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from mystars_faas import MyStarsClient
+from yookassa import Configuration, Payment
 
 # --- НАСТРОЙКИ ---
-# Берем данные из переменных окружения (настроено в Render)
 TOKEN = os.environ.get("BOT_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", 0))
 MYSTARS_API_KEY = os.environ.get("MYSTARS_API_KEY")
+
+# --- НАСТРОЙКИ ЮKASSA ---
+YOOKASSA_SHOP_ID = os.environ.get("YOOKASSA_SHOP_ID")
+YOOKASSA_SECRET_KEY = os.environ.get("YOOKASSA_SECRET_KEY")
+
+if YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY:
+    Configuration.account_id = YOOKASSA_SHOP_ID
+    Configuration.secret_key = YOOKASSA_SECRET_KEY
 
 CARD_NUMBER = "2200 3961 2634 2837"
 SBP_PHONE = "+7 (914) 547-56-71"
@@ -26,7 +35,6 @@ WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 IMG_START = "https://i.postimg.cc/5yDB5CZ1/58dfdbc021d1218e2a6dec03fd8d992c-e50d6344-285f-4836-9894-ed71d863032f-(1).png"
 IMG_FAQ = "https://i.postimg.cc/66hTdnxM/edd5740c076ef1085147274e76aa9a51-82febf9d-67bf-46ad-8a5f-0d2ddf725540.jpg"
 IMG_SUPPORT = "https://i.postimg.cc/zv2WzgJ7/62749612888563fa5dbfdf8de2ed074a-ed2c0b9b-7f01-4db5-a936-7addd32dd7ad-(1).jpg"
-
 IMG_BRAWL = "https://i.postimg.cc/h42HmMCX/BS-Icon.webp"
 IMG_STEAM = "https://i.postimg.cc/FzzCG5P9/9a558ccddb72eda578ab6150c2ed2110.png"
 IMG_STARS = "https://i.postimg.cc/h43KnSR8/bf0290f4408d86d43307f23fb2577c86.jpg"
@@ -109,7 +117,6 @@ async def support_reply(message: types.Message):
     except Exception:
         await message.answer("🆘 <b>Поддержка PotapchikShop</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", parse_mode="HTML")
 
-# --- КАТАЛОГ ---
 @dp.message(lambda message: message.text == "🛒 Каталог")
 async def catalog_reply(message: types.Message):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -121,103 +128,78 @@ async def catalog_reply(message: types.Message):
     ])
     await message.answer("🛒 Выбери игру или сервис из каталога:", reply_markup=keyboard)
 
-# --- МЕНЮ ИГР ---
 @dp.callback_query(lambda c: c.data == "brawl")
 async def brawl_menu(callback: types.CallbackQuery):
     await callback.answer()
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
+    try: await callback.message.delete()
+    except Exception: pass
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💎 100 гемов - 150₽", callback_data="buy_brawl_100")],
         [InlineKeyboardButton(text="💎 500 гемов - 700₽", callback_data="buy_brawl_500")],
         [InlineKeyboardButton(text="🎫 Brawl Pass - 350₽", callback_data="buy_brawl_pass")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_catalog")]
     ])
-    try:
-        await callback.message.answer_photo(photo=IMG_BRAWL, caption="🔥 <b>Brawl Stars</b>\n\nВыбери товар:", reply_markup=keyboard, parse_mode="HTML")
-    except Exception:
-        await callback.message.answer("🔥 <b>Brawl Stars</b>\n\nВыбери товар:", reply_markup=keyboard, parse_mode="HTML")
+    try: await callback.message.answer_photo(photo=IMG_BRAWL, caption="🔥 <b>Brawl Stars</b>\n\nВыбери товар:", reply_markup=keyboard, parse_mode="HTML")
+    except Exception: await callback.message.answer("🔥 <b>Brawl Stars</b>\n\nВыбери товар:", reply_markup=keyboard, parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data == "steam")
 async def steam_menu(callback: types.CallbackQuery):
     await callback.answer()
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
+    try: await callback.message.delete()
+    except Exception: pass
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💵 100₽", callback_data="buy_steam_100"), InlineKeyboardButton(text="💵 200₽", callback_data="buy_steam_200")],
         [InlineKeyboardButton(text="💵 500₽", callback_data="buy_steam_500"), InlineKeyboardButton(text="💵 1000₽", callback_data="buy_steam_1000")],
         [InlineKeyboardButton(text="✍️ Своя сумма", callback_data="steam_custom")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_catalog")]
     ])
-    try:
-        await callback.message.answer_photo(photo=IMG_STEAM, caption="🎮 <b>Steam</b>\n\nВыбери сумму:", reply_markup=keyboard, parse_mode="HTML")
-    except Exception:
-        await callback.message.answer("🎮 <b>Steam</b>\n\nВыбери сумму:", reply_markup=keyboard, parse_mode="HTML")
+    try: await callback.message.answer_photo(photo=IMG_STEAM, caption="🎮 <b>Steam</b>\n\nВыбери сумму:", reply_markup=keyboard, parse_mode="HTML")
+    except Exception: await callback.message.answer("🎮 <b>Steam</b>\n\nВыбери сумму:", reply_markup=keyboard, parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data == "roblox")
 async def roblox_menu(callback: types.CallbackQuery):
     await callback.answer()
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
+    try: await callback.message.delete()
+    except Exception: pass
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🪙 100 Robux - 120₽", callback_data="buy_roblox_100")],
         [InlineKeyboardButton(text="🪙 500 Robux - 550₽", callback_data="buy_roblox_500")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_catalog")]
     ])
-    try:
-        await callback.message.answer_photo(photo=IMG_ROBLOX, caption="🟥 <b>Roblox</b>\n\nВыбери товар:", reply_markup=keyboard, parse_mode="HTML")
-    except Exception:
-        await callback.message.answer("🟥 <b>Roblox</b>\n\nВыбери товар:", reply_markup=keyboard, parse_mode="HTML")
+    try: await callback.message.answer_photo(photo=IMG_ROBLOX, caption="🟥 <b>Roblox</b>\n\nВыбери товар:", reply_markup=keyboard, parse_mode="HTML")
+    except Exception: await callback.message.answer("🟥 <b>Roblox</b>\n\nВыбери товар:", reply_markup=keyboard, parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data == "pubg")
 async def pubg_menu(callback: types.CallbackQuery):
     await callback.answer()
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
+    try: await callback.message.delete()
+    except Exception: pass
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💵 60 UC - 90₽", callback_data="buy_pubg_60")],
         [InlineKeyboardButton(text="💵 325 UC - 450₽", callback_data="buy_pubg_325")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_catalog")]
     ])
-    try:
-        await callback.message.answer_photo(photo=IMG_PUBG, caption="🔫 <b>PUBG Mobile</b>\n\nВыбери товар:", reply_markup=keyboard, parse_mode="HTML")
-    except Exception:
-        await callback.message.answer("🔫 <b>PUBG Mobile</b>\n\nВыбери товар:", reply_markup=keyboard, parse_mode="HTML")
+    try: await callback.message.answer_photo(photo=IMG_PUBG, caption="🔫 <b>PUBG Mobile</b>\n\nВыбери товар:", reply_markup=keyboard, parse_mode="HTML")
+    except Exception: await callback.message.answer("🔫 <b>PUBG Mobile</b>\n\nВыбери товар:", reply_markup=keyboard, parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data == "stars")
 async def stars_menu(callback: types.CallbackQuery):
     await callback.answer()
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
+    try: await callback.message.delete()
+    except Exception: pass
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="⭐ 100 звезд - 150₽", callback_data="buy_stars_100"), InlineKeyboardButton(text="⭐ 200 звезд - 300₽", callback_data="buy_stars_200")],
         [InlineKeyboardButton(text="⭐ 500 звезд - 750₽", callback_data="buy_stars_500"), InlineKeyboardButton(text="⭐ 1000 звезд - 1500₽", callback_data="buy_stars_1000")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_catalog")]
     ])
-    try:
-        await callback.message.answer_photo(photo=IMG_STARS, caption="⭐ <b>Telegram Stars</b>\n\nВыбери количество:", reply_markup=keyboard, parse_mode="HTML")
-    except Exception:
-        await callback.message.answer("⭐ <b>Telegram Stars</b>\n\nВыбери количество:", reply_markup=keyboard, parse_mode="HTML")
+    try: await callback.message.answer_photo(photo=IMG_STARS, caption="⭐ <b>Telegram Stars</b>\n\nВыбери количество:", reply_markup=keyboard, parse_mode="HTML")
+    except Exception: await callback.message.answer("⭐ <b>Telegram Stars</b>\n\nВыбери количество:", reply_markup=keyboard, parse_mode="HTML")
 
-# --- AI STUDIO ---
 @dp.callback_query(lambda c: c.data == "ai_studio")
 async def ai_studio_menu(callback: types.CallbackQuery):
     await callback.answer()
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-    
+    try: await callback.message.delete()
+    except Exception: pass
     text = (
         "🎬 <b>AI Studio PotapchikShop</b>\n\n"
         "Мы используем современные нейросети, чтобы создавать уникальный контент на заказ!\n\n"
@@ -230,19 +212,14 @@ async def ai_studio_menu(callback: types.CallbackQuery):
     )
     await callback.message.answer(text, parse_mode="HTML")
 
-# --- ОБРАБОТКА ВЫБОРА ТОВАРА ---
 @dp.callback_query(lambda c: c.data.startswith("buy_") and "custom" not in c.data)
 async def item_chosen(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
-    
+    try: await callback.message.delete()
+    except Exception: pass
     parts = callback.data.split("_")
     game = parts[1]
     item = parts[2]
-    
     prices = {
         "brawl": {"100": 150, "500": 700, "pass": 350},
         "steam": {"100": 100, "200": 200, "500": 500, "1000": 1000},
@@ -250,35 +227,26 @@ async def item_chosen(callback: types.CallbackQuery, state: FSMContext):
         "pubg": {"60": 90, "325": 450},
         "stars": {"100": 150, "200": 300, "500": 750, "1000": 1500}
     }
-    
     base_price = prices.get(game, {}).get(item, 0)
     if base_price == 0: return
-        
     final_price = int(base_price * 1.15)
     names = {"brawl": "Brawl Stars", "steam": "Steam", "roblox": "Roblox", "pubg": "PUBG", "stars": "Telegram Stars"}
     item_names = {"100": "100", "500": "500", "pass": "Brawl Pass", "200": "200", "1000": "1000", "60": "60 UC", "325": "325 UC"}
-    
     display_name = f"{names[game]} ({item_names.get(item, item)})"
     
     if game == "stars":
         await state.update_data(item_name=display_name, final_price=final_price, game=game, stars_amount=int(item))
-    else:
-        await state.update_data(item_name=display_name, final_price=final_price, game=game)
-    
-    if game == "stars":
         await callback.message.answer(f"Ты выбрал {display_name}.\nК оплате: {final_price}₽.\n\nВведи юзернейм Telegram (без @):")
     else:
+        await state.update_data(item_name=display_name, final_price=final_price, game=game)
         await callback.message.answer(f"Ты выбрал {display_name}.\nК оплате: {final_price}₽.\n\nВведи свой логин/ID:")
-    
     await state.set_state(BuyStates.waiting_for_id)
 
 @dp.callback_query(lambda c: c.data == "steam_custom")
 async def steam_custom(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
+    try: await callback.message.delete()
+    except Exception: pass
     await callback.message.answer("Введи сумму пополнения Steam (только цифры):")
     await state.set_state(BuyStates.waiting_for_amount)
 
@@ -298,7 +266,6 @@ async def process_id(message: types.Message, state: FSMContext):
     if not message.text:
         await message.answer("Пожалуйста, отправь свой логин или ID текстовым сообщением.")
         return
-
     user_id_input = message.text.strip().replace("@", "")
     data = await state.get_data()
     final_price = data.get('final_price')
@@ -312,43 +279,67 @@ async def process_id(message: types.Message, state: FSMContext):
             await msg.edit_text("❌ Ошибка: API-ключ MyStars не настроен.")
             return
         try:
-            # Оборачиваем синхронные запросы в to_thread, чтобы бот не зависал
             check = await asyncio.to_thread(client.check_recipient, user_id_input, type="stars")
             if not check.eligible:
                 await msg.edit_text(f"❌ Ошибка: {check.telegram_message}\nПроверь написание юзернейма.")
                 return
-            
             order = await asyncio.to_thread(client.create_order, type="stars", recipient=user_id_input, quantity=stars_amount, payment_currency="TON")
             user_orders[message.from_user.id] = {"login": user_id_input, "price": final_price, "type": item_name, "mystars_order_id": order.id}
             await msg.delete()
-        except Exception as e:
-            await msg.edit_text(f"❌ Ошибка при создании заказа. Попробуйте позже.")
+        except Exception:
+            await msg.edit_text("❌ Ошибка при создании заказа. Попробуйте позже.")
             return
     else:
         user_orders[message.from_user.id] = {"login": user_id_input, "price": final_price, "type": item_name}
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 Карта", callback_data="pay_card")],
-        [InlineKeyboardButton(text="🏦 СБП", callback_data="pay_sbp")]
-    ])
+    # Кнопки оплаты
+    buttons = []
+    if YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY:
+        buttons.append([InlineKeyboardButton(text="💳 Оплатить онлайн (Карта/СБП)", callback_data="pay_yookassa")])
+    buttons.append([InlineKeyboardButton(text="💳 Перевод на карту (Вручную)", callback_data="pay_card")])
+    buttons.append([InlineKeyboardButton(text="🏦 СБП (Вручную)", callback_data="pay_sbp")])
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
     await message.answer(f"Отлично! Логин/ID: {user_id_input}\nСумма к оплате: {final_price}₽.\n\nВыбери способ оплаты:", reply_markup=keyboard)
     await state.clear()
 
-# --- ОПЛАТА ---
+@dp.callback_query(lambda c: c.data == "pay_yookassa")
+async def process_yookassa(callback: types.CallbackQuery):
+    await callback.answer()
+    order = user_orders.get(callback.from_user.id)
+    if not order: return
+    
+    try: await callback.message.delete()
+    except Exception: pass
+
+    await callback.message.answer("⏳ Создаю ссылку на оплату...")
+    
+    try:
+        idempotence_key = str(uuid.uuid4())
+        payment = await asyncio.to_thread(Payment.create, {
+            "amount": {"value": f"{order['price']}.00", "currency": "RUB"},
+            "confirmation": {"type": "redirect", "return_url": f"https://t.me/{(await bot.get_me()).username}"},
+            "capture": True,
+            "description": f"Заказ: {order['type']} для {order['login']}",
+            "metadata": {"user_id": callback.from_user.id}
+        }, idempotence_key)
+
+        pay_url = payment.confirmation.confirmation_url
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="💸 Перейти к оплате", url=pay_url)]])
+        await callback.message.answer(f"Сумма к оплате: <b>{order['price']}₽</b>\n\nНажми кнопку ниже, чтобы оплатить заказ:", reply_markup=keyboard, parse_mode="HTML")
+        
+    except Exception as e:
+        await callback.message.answer("❌ Ошибка при создании платежа. Попробуйте позже или выберите ручной способ.")
+
 @dp.callback_query(lambda c: c.data in ["pay_card", "pay_sbp"])
 async def process_payment_method(callback: types.CallbackQuery):
     await callback.answer()
     order = user_orders.get(callback.from_user.id)
     if not order: return
-
     method = callback.data
-    try:
-        await callback.message.delete() 
-    except Exception:
-        pass
-
+    try: await callback.message.delete()
+    except Exception: pass
     check_keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔄 Проверить оплату", callback_data="check_payment")]])
-
     if method == "pay_card":
         await callback.message.answer(f"💳 <b>Перевод на карту</b>\n\nСумма: <b>{order['price']}₽</b>\nКарта: <code>{CARD_NUMBER}</code>\n\nПосле перевода нажми:", reply_markup=check_keyboard, parse_mode="HTML")
     elif method == "pay_sbp":
@@ -359,19 +350,15 @@ async def check_payment(callback: types.CallbackQuery):
     await callback.answer()
     order = user_orders.get(callback.from_user.id)
     if not order: return
-
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
+    try: await callback.message.delete()
+    except Exception: pass
     await callback.message.answer("⏳ Запрос отправлен администратору. Ожидайте подтверждения...")
-    
     admin_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Подтвердить оплату", callback_data=f"admin_confirm_{callback.from_user.id}")],
         [InlineKeyboardButton(text="❌ Отклонить", callback_data=f"admin_reject_{callback.from_user.id}")]
     ])
     mystars_info = f"\nMyStars Order ID: {order.get('mystars_order_id')}" if order.get('mystars_order_id') else ""
-    await bot.send_message(ADMIN_ID, f"💰 <b>ЗАПРОС НА ОПЛАТУ!</b>\n\nКлиент: {callback.from_user.first_name}\nТовар: {order.get('type', 'Steam')}\nЛогин/Ник: {order['login']}\nСумма: {order['price']}₽{mystars_info}\n\nПроверь банк:", reply_markup=admin_keyboard, parse_mode="HTML")
+    await bot.send_message(ADMIN_ID, f"💰 <b>ЗАПРОС НА ОПЛАТУ (ВРУЧНУЮ)!</b>\n\nКлиент: {callback.from_user.first_name}\nТовар: {order.get('type', 'Steam')}\nЛогин/Ник: {order['login']}\nСумма: {order['price']}₽{mystars_info}\n\nПроверь банк:", reply_markup=admin_keyboard, parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data.startswith("admin_confirm"))
 async def admin_confirm(callback: types.CallbackQuery):
@@ -379,47 +366,32 @@ async def admin_confirm(callback: types.CallbackQuery):
     user_id = int(callback.data.split("_")[2])
     await bot.send_message(user_id, "✅ <b>Оплата получена!</b>\n\nМы приступаем к выполнению вашего заказа. Ожидайте.", parse_mode="HTML")
     complete_keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏁 Заказ выполнен", callback_data=f"admin_complete_{user_id}")]])
-    
-    try:
-        await callback.message.edit_text("✅ Ты подтвердил оплату. Нажми кнопку ниже, когда выдашь товар.", reply_markup=complete_keyboard)
-    except Exception:
-        pass
+    try: await callback.message.edit_text("✅ Ты подтвердил оплату. Нажми кнопку ниже, когда выдашь товар.", reply_markup=complete_keyboard)
+    except Exception: pass
 
 @dp.callback_query(lambda c: c.data.startswith("admin_reject"))
 async def admin_reject(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID: return
     user_id = int(callback.data.split("_")[2])
     await bot.send_message(user_id, "❌ <b>Оплата не найдена.</b>\nНапиши в поддержку @Fatty_Jerry.", parse_mode="HTML")
-    
-    if user_id in user_orders:
-        del user_orders[user_id]
-        
-    try:
-        await callback.message.edit_text("❌ Отклонено.")
-    except Exception:
-        pass
+    if user_id in user_orders: del user_orders[user_id]
+    try: await callback.message.edit_text("❌ Отклонено.")
+    except Exception: pass
 
 @dp.callback_query(lambda c: c.data.startswith("admin_complete"))
 async def admin_complete(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID: return
     user_id = int(callback.data.split("_")[2])
     await bot.send_message(user_id, "🏁 <b>Заказ успешно выполнен!</b>\n\nСпасибо, что выбрали PotapchikShop!", parse_mode="HTML")
-    
-    if user_id in user_orders:
-        del user_orders[user_id]
-
-    try:
-        await callback.message.edit_text("🏁 Заказ завершен. Клиент уведомлен.")
-    except Exception:
-        pass
+    if user_id in user_orders: del user_orders[user_id]
+    try: await callback.message.edit_text("🏁 Заказ завершен. Клиент уведомлен.")
+    except Exception: pass
 
 @dp.callback_query(lambda c: c.data == "back_to_catalog")
 async def back_to_catalog(callback: types.CallbackQuery):
     await callback.answer()
-    try:
-        await callback.message.delete()
-    except Exception:
-        pass
+    try: await callback.message.delete()
+    except Exception: pass
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔥 Brawl Stars", callback_data="brawl"), InlineKeyboardButton(text="🎮 Steam", callback_data="steam")],
         [InlineKeyboardButton(text="🟥 Roblox", callback_data="roblox"), InlineKeyboardButton(text="🔫 PUBG", callback_data="pubg")],
@@ -429,13 +401,27 @@ async def back_to_catalog(callback: types.CallbackQuery):
     ])
     await callback.message.answer("🛒 Выбери игру или сервис из каталога:", reply_markup=keyboard)
 
-# --- ОБРАБОТКА ПИНГА ДЛЯ RENDER ---
+# --- ВЕБХУКИ ---
 async def handle_ping(request):
     return web.Response(text="OK")
 
-# --- ВЕБХУК ---
+async def handle_yookassa_webhook(request):
+    try:
+        data = await request.json()
+        if data.get('event') == 'payment.succeeded':
+            payment_obj = data['object']
+            user_id = int(payment_obj['metadata']['user_id'])
+            order = user_orders.get(user_id)
+            if order:
+                await bot.send_message(user_id, "✅ <b>Оплата успешно получена!</b>\n\nМы уже начали выполнение вашего заказа. Ожидайте!", parse_mode="HTML")
+                await bot.send_message(ADMIN_ID, f"💰 <b>ОПЛАЧЕНО ОНЛАЙН!</b>\nКлиент ID: {user_id}\nТовар: {order['type']}\nЛогин: {order['login']}\nСумма: {order['price']}₽\n\nЗаказ переведен в работу.", parse_mode="HTML")
+                # Очищаем память (заказ передан в работу)
+                del user_orders[user_id]
+    except Exception as e:
+        print(f"Webhook error: {e}")
+    return web.Response(text="OK")
+
 async def on_startup(app: web.Application):
-    # drop_pending_updates=False, чтобы не терять сообщения, пока бот "спал" на Render
     await bot.delete_webhook(drop_pending_updates=False)
     await bot.set_webhook(WEBHOOK_URL)
 
@@ -444,8 +430,8 @@ def main():
     SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path=WEBHOOK_PATH)
     setup_application(app, dp, bot=bot)
     
-    # Добавляем путь для Cron-Job пинга
     app.router.add_get('/ping', handle_ping)
+    app.router.add_post('/yookassa_webhook', handle_yookassa_webhook)
     
     app.on_startup.append(on_startup)
     port = int(os.environ.get("PORT", 10000))
