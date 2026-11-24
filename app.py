@@ -166,12 +166,6 @@ def game_keyboard(game):
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def fulfil_keyboard(oid):
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🏁 Выдать заказ", callback_data=f"admin_fulfil_{oid}")]
-    ])
-
-
 async def safe_delete(message):
     try:
         await message.delete()
@@ -205,7 +199,9 @@ async def mark_paid(oid, method):
     await bot.send_message(
         ADMIN_ID,
         f"💰 <b>Оплачен заказ {oid}</b> ({method})\nТовар: {order['name']}\nЛогин/ID: {order['login']}\nСумма: {order['price']}₽",
-        reply_markup=fulfil_keyboard(oid),
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🏁 Выдать заказ", callback_data=f"admin_fulfil_{oid}")]
+        ]),
         parse_mode="HTML",
     )
 
@@ -534,7 +530,7 @@ async def admin_reject(callback: types.CallbackQuery):
     if order and order["status"] == "new":
         order["status"] = "rejected"
         save_orders()
-        await bot.send_message(order["user_id"], "❌ <b>Оплата не найдена.</b>\nНапиши в поддержку @" + SUPPORT_USERNAME + ".", parse_mode="HTML")
+        await bot.send_message(order["user_id"], f"❌ <b>Оплата не найдена.</b>\nНапиши в поддержку @{SUPPORT_USERNAME}.", parse_mode="HTML")
     await safe_delete(callback.message)
 
 
@@ -564,10 +560,26 @@ async def admin_fulfil(callback: types.CallbackQuery):
             return
         print(f"MYSTARS ORDER OK {oid}: {mystars_order}", flush=True)
         order["mystars_order"] = str(mystars_order)
-        await callback.message.answer(
-            f"MyStars заказ создан:\n{mystars_order}\n\nЕсли MyStars просит оплату, оплати его в @my_stars_tg_bot."
-        )
+        save_orders()
+        await callback.message.answer(f"MyStars заказ создан:\n{mystars_order}\n\nЕсли MyStars просит оплату, оплати его в @my_stars_tg_bot.")
 
+    await callback.message.answer(
+        f"Проверь выдачу заказа {oid} ({order['name']}, {order['login']}). Когда выдача готова, нажми:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Выдано, сообщить клиенту", callback_data=f"admin_done_{oid}")]]),
+    )
+
+
+@dp.callback_query(F.data.startswith("admin_done_"))
+async def admin_done(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Нет доступа", show_alert=True)
+        return
+    await callback.answer()
+    oid = callback.data.removeprefix("admin_done_")
+    order = orders.get(oid)
+    if not order or order["status"] != "paid":
+        await callback.message.answer("Заказ не найден или уже выполнен.")
+        return
     order["status"] = "fulfilled"
     save_orders()
     await bot.send_message(order["user_id"], "🏁 <b>Заказ успешно выполнен!</b>\n\nСпасибо, что выбрали нас!", parse_mode="HTML")
