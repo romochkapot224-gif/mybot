@@ -1,6 +1,7 @@
 import asyncio
 import os
 import uuid
+import aiohttp
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
@@ -15,6 +16,7 @@ from yookassa import Configuration, Payment
 TOKEN = os.environ.get("BOT_TOKEN")
 ADMIN_ID = int(os.environ.get("ADMIN_ID", 0))
 MYSTARS_API_KEY = os.environ.get("MYSTARS_API_KEY")
+CRYPTOBOT_API_TOKEN = os.environ.get("CRYPTOBOT_API_TOKEN")
 
 # --- НАСТРОЙКИ ЮKASSA ---
 YOOKASSA_SHOP_ID = os.environ.get("YOOKASSA_SHOP_ID")
@@ -51,6 +53,30 @@ class BuyStates(StatesGroup):
 
 user_orders = {}
 
+# Функция для запросов к CryptoBot
+async def create_crypto_invoice(amount_rub, order_id):
+    url = "https://pay.crypt.bot/api/createInvoice"
+    headers = {"Crypto-Pay-API-Token": CRYPTOBOT_API_TOKEN}
+    # Примерный курс: 1 USDT = 90 руб (лучше использовать API для актуального курса)
+    amount_usdt = round(amount_rub / 90.0, 2)
+    
+    payload = {
+        "currency_type": "fiat",
+        "currency": "RUB",
+        "amount": str(amount_rub),
+        "description": f"Заказ #{order_id}",
+        "payload": str(order_id),
+        "paid_btn_name": "callback",
+        "paid_btn_url": "https://t.me/"
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json=payload, headers=headers) as resp:
+            if resp.status == 200:
+                data = await resp.json()
+                return data['result']['bot_invoice_url']
+            return None
+
 def get_main_reply_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[
@@ -63,7 +89,7 @@ def get_main_reply_keyboard():
 @dp.message(Command("start"))
 async def start(message: types.Message):
     welcome_text = (
-        "👋 <b>Добро пожаловать в PotapchikShop!</b>\n\n"
+        "👋 <b>Добро пожаловать в наш магазин!</b>\n\n"
         "Мы — современный сервис по пополнению аккаунтов и покупке игровых ценностей. "
         "Наша команда делает процесс покупки максимально быстрым, удобным и безопасным для каждого клиента.\n\n"
         "В нашем ассортименте всегда есть:\n"
@@ -83,7 +109,7 @@ async def start(message: types.Message):
 @dp.message(lambda message: message.text == "ℹ️ О нас")
 async def about_us(message: types.Message):
     about_text = (
-        "ℹ️ <b>О магазине PotapchikShop</b>\n\n"
+        "ℹ️ <b>О магазине</b>\n\n"
         "Добро пожаловать в наш магазин! Мы — команда энтузиастов, которая делает пополнение игровых аккаунтов максимально быстрым, удобным и безопасным.\n\n"
         "Почему выбирают нас?\n"
         "⚡ <b>Скорость:</b> Мы обрабатываем заказы в течение 1–5 минут.\n"
@@ -113,9 +139,9 @@ async def faq_reply(message: types.Message):
 @dp.message(lambda message: message.text == "🆘 Поддержка")
 async def support_reply(message: types.Message):
     try:
-        await message.answer_photo(photo=IMG_SUPPORT, caption="🆘 <b>Поддержка PotapchikShop</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", parse_mode="HTML")
+        await message.answer_photo(photo=IMG_SUPPORT, caption="🆘 <b>Поддержка</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", parse_mode="HTML")
     except Exception:
-        await message.answer("🆘 <b>Поддержка PotapchikShop</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", parse_mode="HTML")
+        await message.answer("🆘 <b>Поддержка</b>\n\nЕсли у тебя возникли вопросы, напиши нам:\n👉 @Fatty_Jerry", parse_mode="HTML")
 
 @dp.message(lambda message: message.text == "🛒 Каталог")
 async def catalog_reply(message: types.Message):
@@ -206,7 +232,7 @@ async def ai_studio_menu(callback: types.CallbackQuery):
     try: await callback.message.delete()
     except Exception: pass
     text = (
-        "🎬 <b>AI Studio PotapchikShop</b>\n\n"
+        "🎬 <b>AI Studio</b>\n\n"
         "Мы используем современные нейросети, чтобы создавать уникальный контент на заказ!\n\n"
         "Доступные услуги:\n"
         "🎥 <b>Оживление фото:</b> Сделаем видео из твоего фото (от 300₽).\n"
@@ -228,20 +254,13 @@ async def item_chosen(callback: types.CallbackQuery, state: FSMContext):
     game = parts[1]
     item = parts[2]
     
-    # Базовые цены, строго по твоим скриншотам
     prices = {
         "brawl": {"30": 109, "80": 269, "170": 549, "360": 1099, "950": 2699, "2000": 5499},
         "steam": {"100": 100, "200": 200, "500": 500, "1000": 1000},
         "roblox": {
-            "80": 119, 
-            "400": 539, 
-            "800": 1080, 
-            "1200": 1290, 
-            "1700": 2150, 
-            "3150": 2990, 
-            "4500": 5600, 
-            "10000": 11390, 
-            "22500": 22990
+            "80": 119, "400": 539, "800": 1080, "1200": 1290, 
+            "1700": 2150, "3150": 2990, "4500": 5600, 
+            "10000": 11390, "22500": 22990
         },
         "pubg": {"60": 99, "325": 449, "660": 899, "1800": 2290, "3850": 4490, "8100": 8990},
         "stars": {"100": 150, "200": 300, "500": 750, "1000": 1500}
@@ -250,23 +269,14 @@ async def item_chosen(callback: types.CallbackQuery, state: FSMContext):
     base_price = prices.get(game, {}).get(item, 0)
     if base_price == 0: return
         
-    # Наценка 8%
     final_price = int(base_price * 1.08)
     names = {"brawl": "Brawl Stars", "steam": "Steam", "roblox": "Roblox", "pubg": "PUBG", "stars": "Telegram Stars"}
-    
-    # Точные названия для чеков
     item_names = {
         "brawl": {"30": "30 гемов", "80": "80 гемов", "170": "170 гемов", "360": "360 гемов", "950": "950 гемов", "2000": "2000 гемов"},
         "roblox": {
-            "80": "80 Robux", 
-            "400": "400 Robux", 
-            "800": "800 Robux", 
-            "1200": "1200 Robux", 
-            "1700": "1700 Robux", 
-            "3150": "3150 Robux", 
-            "4500": "4500 Robux", 
-            "10000": "10000 Robux", 
-            "22500": "22500 Robux"
+            "80": "80 Robux", "400": "400 Robux", "800": "800 Robux", 
+            "1200": "1200 Robux", "1700": "1700 Robux", "3150": "3150 Robux", 
+            "4500": "4500 Robux", "10000": "10000 Robux", "22500": "22500 Robux"
         },
         "pubg": {"60": "60 UC", "325": "325 UC", "660": "660 UC", "1800": "1800 UC", "3850": "3850 UC", "8100": "8100 UC"}
     }
@@ -296,7 +306,6 @@ async def process_custom_amount(message: types.Message, state: FSMContext):
         await message.answer("❌ Введи только цифры.")
         return
     amount = int(message.text)
-    # Наценка 8%
     final_price = int(amount * 1.08)
     await state.update_data(item_name=f"Steam {amount}₽", final_price=final_price, game="steam")
     await message.answer(f"Ты выбрал Steam {amount}₽. К оплате: {final_price}₽.\nВведи логин Steam:")
@@ -330,7 +339,6 @@ async def process_id(message: types.Message, state: FSMContext):
             user_orders[message.from_user.id] = {"login": user_id_input, "price": final_price, "type": item_name, "mystars_order_id": order.id}
             await msg.delete()
         except Exception as e:
-            # ВЫВОДИМ ОШИБКУ В ЛОГИ RENDER
             print(f"КРИТИЧЕСКАЯ ОШИБКА MYSTARS: {e}")
             await msg.edit_text(f"❌ Ошибка при создании заказа. Попробуйте позже.")
             return
@@ -339,7 +347,10 @@ async def process_id(message: types.Message, state: FSMContext):
     
     buttons = []
     if YOOKASSA_SHOP_ID and YOOKASSA_SECRET_KEY:
-        buttons.append([InlineKeyboardButton(text="💳 Оплатить онлайн (Карта/СБП)", callback_data="pay_yookassa")])
+        buttons.append([InlineKeyboardButton(text="💳 Оплатить картой (Авто)", callback_data="pay_yookassa")])
+    if CRYPTOBOT_API_TOKEN:
+        buttons.append([InlineKeyboardButton(text="💎 Оплатить криптой (USDT)", callback_data="pay_crypto")])
+    
     buttons.append([InlineKeyboardButton(text="💳 Перевод на карту (Вручную)", callback_data="pay_card")])
     buttons.append([InlineKeyboardButton(text="🏦 СБП (Вручную)", callback_data="pay_sbp")])
     
@@ -348,6 +359,28 @@ async def process_id(message: types.Message, state: FSMContext):
     await state.clear()
 
 # --- ОПЛАТА ---
+@dp.callback_query(lambda c: c.data == "pay_crypto")
+async def process_crypto(callback: types.CallbackQuery):
+    await callback.answer()
+    order = user_orders.get(callback.from_user.id)
+    if not order: return
+    
+    try: await callback.message.delete()
+    except Exception: pass
+
+    await callback.message.answer("⏳ Создаю счет в CryptoBot...")
+    
+    try:
+        pay_url = await create_crypto_invoice(order['price'], callback.from_user.id)
+        if pay_url:
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="💸 Оплатить криптой", url=pay_url)]])
+            await callback.message.answer(f"Сумма к оплате: <b>{order['price']}₽</b>\n\nНажми кнопку ниже, чтобы оплатить заказ:", reply_markup=keyboard, parse_mode="HTML")
+        else:
+            await callback.message.answer("❌ Ошибка при создании счета. Попробуйте позже.")
+    except Exception as e:
+        print(f"Ошибка CryptoBot: {e}")
+        await callback.message.answer("❌ Ошибка при создании счета. Попробуйте позже.")
+
 @dp.callback_query(lambda c: c.data == "pay_yookassa")
 async def process_yookassa(callback: types.CallbackQuery):
     await callback.answer()
@@ -436,7 +469,7 @@ async def admin_reject(callback: types.CallbackQuery):
 async def admin_complete(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID: return
     user_id = int(callback.data.split("_")[2])
-    await bot.send_message(user_id, "🏁 <b>Заказ успешно выполнен!</b>\n\nСпасибо, что выбрали PotapchikShop!", parse_mode="HTML")
+    await bot.send_message(user_id, "🏁 <b>Заказ успешно выполнен!</b>\n\nСпасибо, что выбрали нас!", parse_mode="HTML")
     
     if user_id in user_orders:
         del user_orders[user_id]
@@ -458,7 +491,7 @@ async def back_to_catalog(callback: types.CallbackQuery):
     ])
     await callback.message.answer("🛒 Выбери игру или сервис из каталога:", reply_markup=keyboard)
 
-# --- ОБРАБОТКА ПИНГА ДЛЯ RENDER ---
+# --- ВЕБХУКИ ---
 async def handle_ping(request):
     return web.Response(text="OK")
 
@@ -477,7 +510,21 @@ async def handle_yookassa_webhook(request):
         print(f"Webhook error: {e}")
     return web.Response(text="OK")
 
-# --- ВЕБХУК ---
+async def handle_crypto_webhook(request):
+    try:
+        data = await request.json()
+        if data.get('update_type') == 'invoice_paid':
+            order_id_str = data['payload']['payload']
+            user_id = int(order_id_str)
+            order = user_orders.get(user_id)
+            if order:
+                await bot.send_message(user_id, "✅ <b>Оплата криптой получена!</b>\n\nМы уже начали выполнение вашего заказа. Ожидайте!", parse_mode="HTML")
+                await bot.send_message(ADMIN_ID, f"💰 <b>ОПЛАЧЕНО КРИПТОЙ!</b>\nКлиент ID: {user_id}\nТовар: {order['type']}\nЛогин: {order['login']}\nСумма: {order['price']}₽\n\nЗаказ переведен в работу.", parse_mode="HTML")
+                del user_orders[user_id]
+    except Exception as e:
+        print(f"Crypto Webhook error: {e}")
+    return web.Response(text="OK")
+
 async def on_startup(app: web.Application):
     await bot.delete_webhook(drop_pending_updates=False)
     await bot.set_webhook(WEBHOOK_URL)
@@ -489,6 +536,7 @@ def main():
     
     app.router.add_get('/ping', handle_ping)
     app.router.add_post('/yookassa_webhook', handle_yookassa_webhook)
+    app.router.add_post('/crypto_webhook', handle_crypto_webhook)
     
     app.on_startup.append(on_startup)
     port = int(os.environ.get("PORT", 10000))
